@@ -1,35 +1,19 @@
 ﻿
-# ODA Canvas installation
+# ODA CA Lab installation
 
-The Reference Implementation of the ODA Canvas is a set of Helm charts that can be used to install and configure a fully working Canvas. The Reference Implementation is built on top of Kubernetes and Istio. 
+## Motivation
+
+Improve develops work by simplifying, getting rid of manual steps using new ways of doing things not available when it was developed
+Most of the work can be done nowadays using just Helm
 
 ## Software Versions
-
-For each release, we will support a min and max Kubernetes version. 
-
-| ODA Component version | Min Kubernetes version | Max Kubernetes version  |
-| --------------------- | ---------------------- | ----------------------- |
-| v1alpha4              | 1.20                   | 1.22                    |
-| v1beta1               | 1.22                   | 1.25                    |
-
-We will test the Reference Implementation Canvas against a range of kubernetes versions and on a number of different deployments.
-
-| Kubernetes deployment     | Tested | Notes             |
-| ------------------------- | ------ | ----------------- |
-| Rancher on AWS            |        | [Open Digital Lab environment]                   | 
-| Azure AKS                 |        |                   | 
-| Microk8s                  |        |                   | 
-| MiniKube                  |        |                   |
-| Docker Desktop            |        |                   |
-| Kind                      |        | Using [Canvas-in-a-bottle](canvas-in-a-bottle/README.md) |
-| K3s                       |        |                   |  
-| (other)                   |        | To suggest additional environments please add to this [issue](https://github.com/tmforum-oda/oda-canvas-charts/issues/52)                  |
 
 The environment where the chart has been tested has the following
 |Software|Version  |
 |--|--|
 |Istio  | 1.16.1  |
-|Helm | 3.10 |
+|kubernetes | 1.25.6
+|Helm | 3.10
 
 The helm chart installs the following updated versions of third party to
 
@@ -58,20 +42,73 @@ The values used [here](canvas-oda/README.md)
 
 ## Environment installation
 
-### 1. Kubernetes distribution
+### 1. Azure Kubernetes Service
 
-**Prerequisites**: a running K8S distribution.
-The procedure has been tested
+Change the variable RESOURCENAME in the script below:-
 
-- local k3s distribution, rancher desktop or similar
-- AWS [Kops](https://kops.sigs.k8s.io/) with AmazonVPC as network and with and without cert-manager managed by kops
-We assume
+```
 
-- There is a ```kubeconfig``` file available with adequate permissions on the K8s cluster to:
+RESOURCENAME=nameofmyaksresource
 
-- Manage namespaces
-- Install [CRDs](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
-- Manage resources in namespaces
+# Create Resource Group
+az group create -l WestEurope -n $RESOURCENAME-rg
+
+# Deploy template with in-line parameters
+# The below AKS configuration can be amended to your needs by visiting the AKS Construction Set
+# But worth noting that not all configuration setup may be compatible with ODA
+
+az deployment group create -g $RESOURCENAME-rg  --template-uri https://github.com/Azure/AKS-Construction/releases/download/0.9.10/main.json --parameters \
+	resourceName=$RESOURCENAME \
+	agentCount=1 \
+	upgradeChannel=stable \
+	AksPaidSkuForSLA=true \
+	agentCountMax=2 \
+	registries_sku=Basic \
+	acrPushRolePrincipalId=$(az ad signed-in-user show --query id --out tsv) \
+	omsagent=true \
+	retentionInDays=30 \
+	ingressApplicationGateway=true
+	
+# Install Azure Grafana
+
+az grafana create --name grafana-$RESOURCENAME --resource-group $RESOURCENAME-rg
+
+ 
+ ```
+ 
+ #### Enable the collection of Prometheus metrics via Azure Monitor (Preview)
+ 
+ **Prerequisites**: 
+ 
+- The following resource providers must be registered in the subscription of the AKS cluster and the Azure Monitor Workspace.
+-- Microsoft.ContainerService
+-- Microsoft.Insights
+-- Microsoft.AlertsManagement
+
+- Register the AKS-PrometheusAddonPreview feature flag in the Azure Kubernetes clusters subscription with the following command in Azure CLI: az feature register --namespace Microsoft.ContainerService --name AKS-PrometheusAddonPreview.
+- The aks-preview extension needs to be installed using the command az extension add --name aks-preview. For more information on how to install a CLI extension, see Use and manage extensions with the Azure CLI.
+- Aks-preview version 0.5.122 or higher is required for this feature. You can check the aks-preview version using the az version command.
+
+```
+# RESOURCENAME=nameofmyaksresource # You will need to uncomment this line if the variable is no longer set from the previous step
+
+GRAFANARESOURCEID=$(az grafana show -n grafana-$RESOURCENAME -g $RESOURCENAME-rg   --query id --output tsv)
+MONITORWORKSPACERESOURCEID=$(az monitor log-analytics workspace show -n log-$RESOURCENAME -g $RESOURCENAME-rg --query id --output tsv)
+
+az aks update --enable-azuremonitormetrics -n aks-$RESOURCENAME -g $RESOURCENAME-rg --grafana-resource-id  $GRAFANARESOURCEID
+
+# Logging into AKS
+
+az aks get-credentials -n aks-$RESOURCENAME -g $RESOURCENAME-rg
+
+# Applying the Prometheus ConfigMap configuration for Azure Monitor managed service for Prometheus
+# This can be modified to your needs as per docs:- 
+# https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/prometheus-metrics-scrape-configuration
+
+kubectl apply -f https://raw.githubusercontent.com/samaea/oda-canvas-charts/master/azure-assets/ama-metrics-prometheus-config.yaml
+
+```
+ 
 
 ### 2. Helm
 
@@ -106,7 +143,7 @@ helm install istio-base istio/base -n istio-system
 helm install istiod istio/istiod -n istio-system --wait
 kubectl create namespace istio-ingress
 kubectl label namespace istio-ingress istio-injection=enabled
-helm install istio-ingress istio/gateway -n istio-ingress --wait
+helm install istio-ingressgateway istio/gateway -n istio-ingress --wait
 ```
 
 This way of installing Istio sets a **istio=ingress** label in the istio-ingress service.
@@ -114,15 +151,15 @@ The  apiOperatorIsito rely on this component to have a **istio=ingressgateway**
 Check if it's the case in your installation.
 
 ````bash
-kubectl get svc istio-ingress -n istio-ingress --show-labels
+kubectl get svc istio-ingressgateway -n istio-ingress --show-labels
 NAME            TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                                      AGE     LABELS
-istio-ingress   LoadBalancer   10.43.218.202   172.28.58.9   15021:31154/TCP,80:31497/TCP,443:30230/TCP   3d22h   app.kubernetes.io/managed-by=Helm,app.kubernetes.io/name=istio-ingress,app.kubernetes.io/version=1.16.2,app=istio-ingress,helm.sh/chart=gateway-1.16.2,istio=ingress 
+istio-ingressgateway   LoadBalancer   10.43.218.202   172.28.58.9   15021:31154/TCP,80:31497/TCP,443:30230/TCP   3d22h   app.kubernetes.io/managed-by=Helm,app.kubernetes.io/name=istio-ingress,app.kubernetes.io/version=1.16.2,app=istio-ingress,helm.sh/chart=gateway-1.16.2,istio=ingress 
 ````
 
 If so, execute this command to set the label to what it's expected.
 
 ````
-kubectl label svc istio-ingress -n istio-ingress istio=ingressgateway --overwrite
+kubectl label svc istio-ingressgateway -n istio-ingress istio=ingressgateway --overwrite
 service/istio-ingress labeled
 ````
 
@@ -167,6 +204,16 @@ REVISION: 1
 TEST SUITE: None
 ````
 
+### 4. Demo application (ProductCatalog)
+ **Prerequisites**: 
+ - Git
+ 1. Sample Product Catalog application based on this [tutorial](https://tmforum-oda.github.io/oda-ca-docs/caDocs/Observability-Tutorial/README.html) that leverages Azure Application Gateway for load balancing and using pod annotations to instruct Prometheus metrics to be collected via Azure Monitor. Visit [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/deployment-metricsapi.yaml) to see how that is done. For Application Gateway config, you can view this [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/ingress-partyroleapi.yaml) and [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/deployment-productcatalogapi.yaml).
+````bash
+git clone https://github.com/samaea/oda-ca-docs
+cd oda-ca-docs/examples/ProductCatalog
+helm install r1 productcatalog -n components
+````
+
 ## Troubleshooting
 
 ### Error instaling: BackoffLimitExceeded
@@ -196,7 +243,7 @@ oda-controller-ingress-d5c495bbb-crt4t      2/2     Running     0          4m43s
 Checking the logs of the failed Job
 
 ````bash
-2023-02-01 15:23:19.488  INFO 1 --- [           main] d.a.k.config.provider.KeycloakProvider   : Wait 120 seconds until http://canvas-keycloak-headless:8083/auth/ is available ...
+2023-02-01 15:23:19.488  INFO 1 --- [           main] d.a.k.config.provider.KeycloakProvider   : Wait 120 seconds until http://canvas-keycloak-headless:8080/auth/ is available ...
 2023-02-01 15:25:19.511 ERROR 1 --- [           main] d.a.k.config.KeycloakConfigRunner        : Could not connect to keycloak in 120 seconds: HTTP 403 Forbidden
 ````
 
