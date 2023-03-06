@@ -204,7 +204,13 @@ REVISION: 1
 TEST SUITE: None
 ````
 
-### 4. Demo application (ProductCatalog)
+4. Apply the canvas-controller-configmap for PrometheusAnnotation to be configured. This ensures application metrics are merged into Istio's metrics.
+
+```bash
+kubectl patch configmap canvas-controller-configmap --patch-file ./configmap/canvas-controller-configmap.yaml -n canvas
+```
+
+### 5. Demo application (ProductCatalog)
  **Prerequisites**: 
  - Git
  1. Sample Product Catalog application based on this [tutorial](https://tmforum-oda.github.io/oda-ca-docs/caDocs/Observability-Tutorial/README.html) that leverages Azure Application Gateway for load balancing and using pod annotations to instruct Prometheus metrics to be collected via Azure Monitor. Visit [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/deployment-metricsapi.yaml) to see how that is done. For Application Gateway config, you can view this [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/ingress-partyroleapi.yaml) and [here](https://github.com/samaea/oda-ca-docs/blob/master/examples/ProductCatalog/productcatalog/templates/deployment-productcatalogapi.yaml).
