@@ -54,7 +54,7 @@ RESOURCENAME=nameofmyaksresource
 az group create -l WestEurope -n $RESOURCENAME-rg
 
 # Deploy template with in-line parameters
-# The below AKS configuration can be amended to your needs by visiting the AKS Construction Set
+# The below AKS configuration can be amended to your needs by visiting the AKS Construction Set helper:- https://azure.github.io/AKS-Construction/
 # But worth noting that not all configuration setup may be compatible with ODA
 
 az deployment group create -g $RESOURCENAME-rg  --template-uri https://github.com/Azure/AKS-Construction/releases/download/0.9.10/main.json --parameters \
