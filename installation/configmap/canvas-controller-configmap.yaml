@@ -1,0 +1,7 @@
+apiVersion: v1
+data:
+  OPENMETRICS_IMPLEMENTATION: PrometheusAnnotation
+kind: ConfigMap
+metadata:
+  name: canvas-controller-configmap
+  namespace: canvas
