@@ -62,6 +62,7 @@ az deployment group create -g $RESOURCENAME-rg  --template-uri https://github.co
 	agentCount=1 \
 	upgradeChannel=stable \
 	AksPaidSkuForSLA=true \
+	SystemPoolType=Standard \
 	agentCountMax=2 \
 	registries_sku=Basic \
 	acrPushRolePrincipalId=$(az ad signed-in-user show --query id --out tsv) \
