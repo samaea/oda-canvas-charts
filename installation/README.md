@@ -208,6 +208,8 @@ TEST SUITE: None
 4. Apply the canvas-controller-configmap for PrometheusAnnotation to be configured. This ensures application metrics are merged into Istio's metrics.
 
 ```bash
+# Navigate back to the root
+cd ../
 kubectl patch configmap canvas-controller-configmap --patch-file ./configmap/canvas-controller-configmap.yaml -n canvas
 ```
 
