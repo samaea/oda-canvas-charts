@@ -191,7 +191,15 @@ cd ..\canvas-oda
 helm dependency update
 ````
 
-3. Install the reference implementation
+3. Apply the canvas-controller-configmap for PrometheusAnnotation to be configured. This ensures application metrics are merged into Istio's metrics.
+
+```bash
+# Navigate back to the installation folder
+cd ../
+kubectl patch configmap canvas-controller-configmap --patch-file ./configmap/canvas-controller-configmap.yaml -n canvas
+```
+
+4. Install the reference implementation
 
 Install the canvas using the following command.
 
@@ -205,13 +213,6 @@ REVISION: 1
 TEST SUITE: None
 ````
 
-4. Apply the canvas-controller-configmap for PrometheusAnnotation to be configured. This ensures application metrics are merged into Istio's metrics.
-
-```bash
-# Navigate back to the installation folder
-cd ../
-kubectl patch configmap canvas-controller-configmap --patch-file ./configmap/canvas-controller-configmap.yaml -n canvas
-```
 
 ### 5. Demo application (ProductCatalog)
  **Prerequisites**: 
